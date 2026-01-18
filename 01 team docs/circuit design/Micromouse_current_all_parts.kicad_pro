@@ -533,7 +533,7 @@
       "gencad": "",
       "idf": "",
       "netlist": "",
-      "plot": "",
+      "plot": "./Micromouse_Gerber",
       "pos_files": "",
       "specctra_dsn": "",
       "step": "",
