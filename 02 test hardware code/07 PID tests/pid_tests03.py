@@ -75,7 +75,7 @@ if __name__ == "__main__":
         print(step_count_m1, "| ", target_step_m1, "| ", step_count_m2, "| ", target_step_m2, "| ")
         
         print("motor1: ", step_count_m1, "| motor2: ", step_count_m2)
-        mm.drive_forward(power = round(50))
+        mm.drive_forward(power = round(80))
         
         button_bool = mm.get_button()
         if button_bool:
