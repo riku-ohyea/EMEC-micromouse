@@ -32,7 +32,47 @@ if __name__ == "__main__":
             break
         
     # Continue test from here
+    # 18cm aprox 1296, 1246-1250
 #     print("")
 #     time.sleep(5)
     
+    print("exited encoder print loop.")
+    print("waiting 5 seconds ....")
+    time.sleep(5)
+    print("push button to enter next tests")
+    
+    while True:
+        button_bool = mm.get_button()
+        if button_bool:
+            print("entering next tests...")
+            break
+    
+    print("entered next test")
+    
+    # Test run 18cm
+    step_dist = 180
+    
+    step_rate = 1250
+    
+    target_step = round(step_dist * step_rate /step_dist)
+    
+    init_encoder_m1 = mm.motor_1.encoder_read()
+    init_encoder_m2 = mm.motor_2.encoder_read()
+    
+    step_count_m1 = init_encoder_m1
+    step_count_m2 = init_encoder_m2
+    
+    target_step_m1 = init_encoder_m1 + target_step
+    target_step_m2 = init_encoder_m2 + target_step
+    
+    while step_count_m1 < target_step_m1 or step_count_m2 < target_step_m2:
+        step_count_m1 = mm.motor_1.encoder_read()
+        step_count_m2 = mm.motor_2.encoder_read()
         
+        print("motor1: ", step_count_m1, "| motor2: ", step_count_m2)
+        mm.drive_forward(power = round(255/2))
+        
+        button_bool = mm.get_button()
+        if button_bool:
+            print("entering next tests...")
+            break
