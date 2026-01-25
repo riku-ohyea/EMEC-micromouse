@@ -1,0 +1,71 @@
+import random
+import pygame
+from pygame.locals import *
+import sys
+import numpy as np
+
+#currently does not yet generate SOLVEABLE MAZES!!!! Will update to make .txt maze file
+#width of maze walls is considered negligable for this model
+# 1cm ~ 4 pixels in this model
+disp_length = 605 #length of entire maze
+clearance = 15 # border on either side of window
+window = pygame.display.set_mode((disp_length+2*clearance,disp_length+2*clearance))
+
+
+#defines a square of maze including id, walls and position
+class Square:
+    def __init__(self, id, walls, x_pos, y_pos, length=disp_length/9):
+        self.id = id #bottom left is 1
+        self.walls = walls #walls 0b1000 = back wall, 0b0100 = left wall, 0b0010 = front wall, 0b0001 = right wall
+        self.x_pos = x_pos
+        self.y_pos = y_pos
+        self.length = length
+    def draw(self): #draws maze in window for visualisation
+        if self.walls & 0b1000:                                             #back (bottom) wall
+            pygame.draw.line(window,(255,255,255),(self.x_pos,self.y_pos+self.length),(self.x_pos + self.length,self.y_pos + self.length))
+        if self.walls & 0b0100:                                             #left wall
+            pygame.draw.line(window,(255,255,255),(self.x_pos,self.y_pos),(self.x_pos,self.y_pos + self.length))
+        if self.walls & 0b0010:                                             #front (top) wall
+            pygame.draw.line(window,(255,255,255),(self.x_pos,self.y_pos),(self.x_pos + self.length,self.y_pos))
+        if self.walls & 0b0001:                                             #right wall
+            pygame.draw.line(window,(255,255,255),(self.x_pos + self.length,self.y_pos),(self.x_pos + self.length,self.y_pos + self.length))
+
+i = 0
+prev_walls = [] #array that stores previous squares' wall positions
+while i < 81:
+    walls = random.randint(0,3) #this randomly generates the front (top) and right walls of each square
+    # the back (bottom) and left walls are determined based on the top and right walls of neighbouring squares
+    row = i-9*np.floor(i/9)
+    col = np.floor(i/9)
+    # Sets the borders of the maze
+    if col == 0:
+        walls = walls | 0b0100
+    else: #determines the left wall of squares based on the right wall of its neighbour
+        if (prev_walls[i-9] & 0b0001):
+            walls = walls | 0b0100
+    if col == 8:
+        walls = walls | 0b0001
+    if row == 0:
+        walls = walls | 0b1000
+    else: #determines the back wall of squares based on the top wall of its neighbour
+        if (prev_walls[i-1] & 0b0010):
+            walls = walls | 0b1000
+    if row == 8:
+        walls = walls | 0b0010
+    prev_walls.append(walls)
+    square = Square(i,walls,clearance +(disp_length/9)*col, clearance+ disp_length-(disp_length/9)*(1+row))
+    square.draw()
+    i=i+1
+# square 0 == bottom left corner == start
+# square 40 == centre
+print(prev_walls)
+
+
+
+# loop so that you can exit the window.
+while True:
+    for event in pygame.event.get():
+        if event.type == QUIT:
+            pygame.quit()
+            sys.exit()
+        pygame.display.update()
