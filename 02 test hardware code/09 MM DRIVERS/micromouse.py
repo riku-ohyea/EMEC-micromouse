@@ -5,8 +5,6 @@ Date: 03/01/2025
 Version: 0.5
 Description: Provides a software abstraction for the Micromouse robot.
 License: MIT License
-
-Edits done by EMEC 2026 Jan-Feb
 """
 from machine import Pin, Timer
 from motor import Motor
