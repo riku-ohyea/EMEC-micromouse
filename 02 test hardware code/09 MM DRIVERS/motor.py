@@ -30,8 +30,8 @@ class Motor():
         self.m1 = PWM(Pin(m1_pin), freq = 2000)
         self.m2 = PWM(Pin(m2_pin), freq = 2000)
 
-        self._encoder = RotaryIRQ(e1_pin, e2_pin)
-#         self._encoder = RotaryIRQ(e1_pin, e2_pin, pull_up=True)
+#         self._encoder = RotaryIRQ(e1_pin, e2_pin)
+        self._encoder = RotaryIRQ(e1_pin, e2_pin, pull_up=True)
         self._invert = False
     
     def constrain(self, value, min_value, max_value):
