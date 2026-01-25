@@ -31,7 +31,7 @@ class Motor():
         self.m2 = PWM(Pin(m2_pin), freq = 2000)
 
         self._encoder = RotaryIRQ(e1_pin, e2_pin)
-        # self._encoder = RotaryIRQ(e1_pin, e2_pin, pull_up=True)
+#         self._encoder = RotaryIRQ(e1_pin, e2_pin, pull_up=True)
         self._invert = False
     
     def constrain(self, value, min_value, max_value):
@@ -74,13 +74,22 @@ class Motor():
 
         Parameters:
             power (int): Desired power to run the motor at. [-255, 255]
+            
+        updated since pico can't handle high negative values        
         """
+        if power == 0:
+            self.m1.duty_u16(0)
+            self.m2.duty_u16(0)
+            return
+        
         limited_power = self.constrain(power, -255, 255)
+        duty = abs(limited_power) * 257  # 0..65535
+        
         if (limited_power > 0) ^ self._invert:
-            self.m2.duty_u16(limited_power * 257)
+            self.m2.duty_u16(duty)
             self.m1.duty_u16(0)
         else:
-            self.m1.duty_u16(limited_power * 257)
+            self.m1.duty_u16(duty)
             self.m2.duty_u16(0)
 
     def spin_stop(self):

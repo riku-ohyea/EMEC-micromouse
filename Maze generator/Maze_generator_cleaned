@@ -1,0 +1,87 @@
+#generates a random_maze.txt (SOMETIMES solveable)
+#I [Lily] am currently working on making the mazes ALWAYS solveable
+import random
+import numpy as np
+f = open("random_maze.txt", "w")
+
+class Row_txt:
+    def __init__(self, row_num ,square_walls, done_S = False, col = 0):
+        self.row_num = row_num
+        self.square_walls = square_walls
+        self.done_S = done_S
+        self.col = col
+    def draw(self): #this is for .txt
+        i = 0
+        j = 0
+        while i< 2:
+            if i ==0:
+                for square in self.square_walls: #top wall
+                    if square & 0b0010:
+                        f.write("o---")
+                    else:
+                        f.write("o   ")
+                f.write("o")
+            else:
+                f.write("\n") #starts row
+                for square in self.square_walls:
+                    if self.row_num == 8 and self.done_S == False:
+                        f.write("| S ")
+                        self.done_S = True
+                    else:
+                        if square & 0b0100: #left wall
+                            f.write("|")
+                        else:
+                            f.write(" ")
+                        if self.row_num==4:
+                            if self.col==4: 
+                                f.write(" G ")
+                            else:
+                                f.write("   ")
+                            self.col = self.col+1
+                        else:
+                            f.write("   ")
+                f.write("|") #right wall
+                if self.row_num ==8:
+                    f.write("\n")
+                    for square in self.square_walls: #bottom walls
+                        f.write("o---")
+                    f.write("o")
+            i = i+1
+
+
+rows = [[],[],[],[],[],[],[],[],[]]
+i = 0
+prev_walls = [] #array that stores previous squares' wall positions
+while i < 81:
+    walls = random.randint(0,3) #this randomly generates the front (top) and right walls of each square
+    # the back (bottom) and left walls are determined based on the top and right walls of neighbouring squares
+    row = i-9*np.floor(i/9)
+    col = np.floor(i/9)
+    # Sets the borders of the maze
+    if col == 0:
+        walls = walls | 0b0100
+    else: #determines the left wall of squares based on the right wall of its neighbour
+        if (prev_walls[i-9] & 0b0001):
+            walls = walls | 0b0100
+    if col == 8:
+        walls = walls | 0b0001
+    if row == 0:
+        walls = walls | 0b1000
+    else: #determines the back wall of squares based on the top wall of its neighbour
+        if (prev_walls[i-1] & 0b0010):
+            walls = walls | 0b1000
+    if row == 8:
+        walls = walls | 0b0010
+    rows[8-int(row)].append(walls)
+    prev_walls.append(walls)
+    i=i+1
+# square 0 == bottom left corner == start
+# square 40 == centre
+print(rows)
+i = 0
+for r in rows:
+    print(r)
+    row_txt = Row_txt(i,r)
+    row_txt.draw()
+    f.write("\n")
+    i=i+1
