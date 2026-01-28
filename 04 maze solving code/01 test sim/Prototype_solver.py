@@ -19,59 +19,28 @@ import sys
 from random import randint
 import colorsys
 
-pygame.init()
-screen = pygame.display.set_mode((640, 720))
-clock = pygame.time.Clock()
-running = True
-display_colors = False
-display_distance = False
-display_ranks = False
-inverted = False # Set this to true to turn whatever maze you input upside down
 
 
-maze_size = int(sys.argv[1]) if len(sys.argv) > 1 else 9
-fixed_maze = bool(sys.argv[2]) if len(sys.argv) > 2 else True
-square_size = int((screen.get_width()-10)/maze_size)-1
-maze_centre = (int(maze_size/2),int(maze_size/2))
+def rotate_walls():
+    pass
 
-middle = pygame.Vector2(screen.get_width()/2, screen.get_height()/2)
-
-value = 1
-saturation = 0.5
-
-# Below is a small function for rotating the detected wall configuration to compensate for the direction the robot will be facing during operation
-
-def rotate_walls(code,current_direction):
-
-        temp_code = code * current_direction
-
-        return int(temp_code / 16) + (temp_code % 16)
-
-
-# Here's where it gets complicated, each cell (node) has a 4 bit code corresponding to the configuration of the walls, the least significant bit
-# represents a wall to the right, increasing bit significance proceeds clockwise around the centre of the node from there. A single wall to the right
-# would be given by 0001, a wall above and below is 1010, and three walls except for the one below would be 1101. The decimal representation of these
-# 4 bit codes are how I store the wall configurations, as you'll see below
-
-fixed_codes = [12, 11, 12, 11, 13, 5, 14, 2, 8, 3, 4, 9, 14, 0, 9, 5, 4, 10, 3, 7, 7, 6, 10, 10, 11]
-fixed_codes = [12, 10, 8, 9, 13, 5, 12, 3, 6, 1, 5, 5, 14, 9, 5, 5, 5, 13, 5, 5, 6, 3, 6, 2, 3]
-fixed_codes = [12,10,10,8,8,10,10,8,9,5,14,8,0,2,10,9,5,5,4,9,4,1,12,10,3,4,1,7,5,6,3,6,10,9,5,5,13,4,11,13,13,12,3,4,1,4,1,12,1,5,6,9,5,5,5,5,6,1,5,12,3,4,1,5,6,9,5,5,6,10,1,5,6,11,6,2,2,10,10,2,3]
-
-inverted_codes = [rotate_walls(code,4) for code in (fixed_codes)]
-inverted_codes.reverse()
+UP = 0b0001
+RIGHT = 0b0010
+DOWN = 0b0100
+LEFT = 0b1000
 
 
 class NODE:
 
     # def __init__(self, pos, rank, code = 0):
-    def __init__(self, pos, code = 0):
+    def __init__(self, pos, maze_size, code = 0):
         self.pos = pos
         self.x = pos % maze_size
         self.y = int(pos/maze_size)
         # self.rank = rank
         self.code = code
         # self.edge = ""
-        self.fixed_dist_end = abs(self.x-maze_centre[0]) + abs(self.y-maze_centre[1])
+        self.fixed_dist_end = abs(self.x-int(maze_size/2)) + abs(self.y-int(maze_size/2))
         self.fixed_dist_start = self.x + self.y
         self.dist_end = self.fixed_dist_end
         self.dist_start = self.fixed_dist_start
@@ -97,8 +66,7 @@ class MAZESOLVER:
             exit
         
         
-        print("I am alive")
-        self.start_point = 0
+        # print("I am alive")
         self.current_node_pos = 0
         self.maze_size = maze_size
         self.end_point = int((self.maze_size**2)/2)
@@ -113,73 +81,40 @@ class MAZESOLVER:
 
     def create_maze(self):    # Creates an N^2 long list of NODE instances, organized into an N*N grid for the purposes of maze
                                         # tracking and solving
-        
-        
-        # ranks = []
         nodes = []
-
-        # for i in range(maze_size**2):
-        #     ranks.append(i)
-
         for i in range(self.maze_size**2):
-            # rankpos = randint(0,len(ranks)-1) #creates a list of ranks that the nodes will
-            # be randomly assigned to prevent conflicts of walls later
-            # nodes.append(NODE(pos = i, rank = ranks[rankpos],code = randint(0,15))) #generate
-            #a series of nodes, each of which corresponds to a cell of the maze, assign that node
-            #a random configuration of walls, and a random rank from the remaining available ranks
 
-            nodes.append(NODE(pos = i)) #generates a NODE instance and stores it in the list "nodes"
+            nodes.append(NODE(pos = i,maze_size=self.maze_size)) #generates a NODE instance and stores it in the list "nodes"
                                         # to be passed to the maze solving algorithm
-
-            # ranks.pop(rankpos) #remove used ranks to prevent conflicts
-
-            #The following set of if statements adds borders to the outer edge of the maze
-            if nodes[i].x == 0:  #Left hand edge of maze
-                nodes[i].code |= 4 
-                # nodes[i].edge = "L"
-            if nodes[i].x == self.maze_size - 1: #Right hand edge of maze
-                nodes[i].code |= 1
-                # nodes[i].edge = "R"
-            if nodes[i].y == 0: #Top row of maze
-                nodes[i].code |= 8
-                # nodes[i].edge += "T"
-            if nodes[i].y == self.maze_size - 1: #Bottom row of maze
-                nodes[i].code |= 2
-                # nodes[i].edge += "B"
-            else: #Internal squares
-                # nodes[i].edge = "I" 
-                pass
-
-            if fixed_maze == True:
-                nodes[i].code = fixed_codes[i] if inverted == False else inverted_codes[i]
-            
-            #The following section is intended to use the ranks of the nodes to remove walls
-            #that conflict with open sections or add walls so that neighbouring cells all agree
-            #on the existence of a given wall
-
-        # for node in nodes:
-        #     #RHS Node
-        #     if not node.edge[0] == "R":
-        #         neighbour = nodes[node.pos + 1]
-        #         if neighbour.rank > node.rank:
-        #             pass
-            
-
         return nodes
 
-    def find_adjacents(self):
+    def update_adjacent_walls(self, current_node: NODE):
+        if current_node.code & UP and current_node.y > 0:
+            self.nodes[self.xy_to_pos(current_node.x,current_node.y-1)].code |= DOWN
+        if current_node.code & RIGHT and current_node.x < self.maze_size-1:
+            self.nodes[self.xy_to_pos(current_node.x+1,current_node.y)].code |= LEFT
+        if current_node.code & DOWN and current_node.y < self.maze_size-1:
+            self.nodes[self.xy_to_pos(current_node.x,current_node.y+1)].code |= UP
+        if current_node.code & LEFT and current_node.x > 0:
+            self.nodes[self.xy_to_pos(current_node.x-1,current_node.y)].code |= RIGHT
         return
+
+    def xy_to_pos(self, x: int,y: int):
+        return x + self.maze_size*y
+
+    def pos_to_xy(self, pos: int):
+        return int(pos % self.maze_size), int(pos/self.maze_size)
 
     def get_node_children(self, current_node: NODE):
         code = current_node.code
         current_node.children.clear()
-        if not (code & 1):    
+        if not (code & RIGHT):    
             current_node.children.append(current_node.pos+1)
-        if not (code & 2):
+        if not (code & DOWN):
             current_node.children.append(current_node.pos+self.maze_size)
-        if not (code & 4):
+        if not (code & LEFT):
             current_node.children.append(current_node.pos-1)
-        if not (code & 8):
+        if not (code & UP):
             current_node.children.append(current_node.pos-self.maze_size)
         for i in range(len(current_node.children)):
             if current_node.children[i] == current_node.parent:
@@ -205,9 +140,10 @@ class MAZESOLVER:
 
 
     def step(self):
+        
         if self.current_node_pos == self.end_point:
             self.solved = True
-            return
+            return  self.pos_to_xy(self.current_node_pos)
         
         
         current_node = self.nodes[self.current_node_pos]
@@ -216,17 +152,15 @@ class MAZESOLVER:
             self.path.pop()
             self.current_node_pos = current_node.parent
 
-
+        
         self.get_node_children(current_node)
 
-        print("There are " + str(len(current_node.children)) + " children on this node")
-        print("and the positions of the children are")
-        for i in range(len(current_node.children)):
-            print(str(current_node.children[i]))
+        # print("There are " + str(len(current_node.children)) + " children on this node")
+        # print("and the positions of the children are")
+        # for i in range(len(current_node.children)):
+        #     print(str(current_node.children[i]))
         
         if len(current_node.children) < 1 or all([self.nodes[child].dead_end == True for child in current_node.children]):
-            current_node.dead_end = True
-            print("dead end reached")
             next_child = -1
         elif len(current_node.children) == 1 and not any([current_node.children[0] == path_step for path_step in self.path]):
             next_child = current_node.children[0]
@@ -234,7 +168,7 @@ class MAZESOLVER:
             next_child = self.next_child(current_node)
             pass
         
-        print("wow i can't believe that worked")
+        # print("wow i can't believe that worked")
 
         if next_child == -1:
             current_node.dead_end = True
@@ -244,124 +178,200 @@ class MAZESOLVER:
             self.path.append(next_child)
             self.current_node_pos = next_child
         
+        return self.nodes[self.current_node_pos].x, self.nodes[self.current_node_pos].y
+
+    #END OF MAZESOLVER CLASS
+
+    
+class ROBOT_CONTROL:
+    def __init__(self, maze_size, inverted: bool):
+        self.x = 0
+        self.y = 0
+        self.maze_size = maze_size
+        self.direction = 0
+        self.inverted = inverted
+
+
+# Here's where it gets complicated, each cell (node) has a 4 bit code corresponding to the configuration of the walls, the least significant bit
+# represents a wall to the top, increasing bit significance proceeds clockwise around the centre of the node from there. A single wall to the right
+# would be given by 0010, a wall above and below is 0101, and three walls except for the one below would be 1011. The decimal representation of these
+# 4 bit codes are how I store the wall configurations, as you'll see below
+
+
+        self.fixed_codes = [9, 5, 5, 1, 1, 5, 5, 1, 3, 10, 13, 1, 0, 4, 5, 3, 10, 10, 8, 3, 8, 2, 9, 5, 6, 8, 2, 14, 10, 12, 6, 12, 5, 3, 10, 10, 11, 8, 7, 11, 11, 9, 6, 8, 2, 8, 2, 9, 2, 10, 12, 3, 10, 10, 10, 10, 12, 2, 10, 9, 6, 8, 2, 10, 12, 3, 10, 10, 12, 5, 2, 10, 12, 7, 12, 4, 4, 5, 5, 4, 6]
+        if self.inverted:
+            inverted_codes = [rotate_walls(code,2) for code in (fixed_codes)]
+            inverted_codes.reverse()
+            fixed_codes = inverted_codes
+
         return
 
-        
-        
-            
-        
-
-        return
-
-
-
+    def get_walls(self):
+        pass
     
+    def dummy_get_walls(self):
+        return rotate_walls(self.fixed_codes[self.y*self.maze_size + self.x],(0-self.direction) % 4)
+
+    def rotate(self, new_dir):
+        #add motor control here
+        try:
+            diff = self.direction - new_dir
+            self.direction = new_dir
+            return new_dir
+        except:
+            return -1    
 
 
+    def move_goto(self, x, y):
+        #add motor control here
+        if self.x == x and self.y == y:
+            return -1
+        self.x = x
+        self.y = y
+        pass
 
-    
+    def move_dir_dist(self, dir, dist):
+        old_x = self.x
+        old_y = self.y
+        # if dir 
+        pass
 
-    
+    #END OF ROBOT_CONTROL CLASS
 
 
-
-def draw_walls(screen: pygame.Surface,rect_start_x: int, rect_start_y: int, code: int):
+def draw_walls(screen: pygame.Surface,rect_start_x: int, rect_start_y: int, square_size: int, code: int):
     top_left = (rect_start_x - 1, rect_start_y - 1)
     top_right = (rect_start_x + square_size, rect_start_y - 1)
     bottom_left = (rect_start_x - 1, rect_start_y + square_size)
     bottom_right = (rect_start_x + square_size, rect_start_y + square_size)
-    if code & 0b1 == 1:
+    if code & RIGHT:
         pygame.draw.line(screen, "black", top_right, bottom_right,5)
-    if code & 0b10 == 0b10:
+    if code & DOWN:
         pygame.draw.line(screen, "black", bottom_left, bottom_right,5)
-    if code & 0b100 == 0b100:
+    if code & LEFT:
         pygame.draw.line(screen, "black", top_left, bottom_left,5)
-    if code & 0b1000 == 0b1000:
+    if code & UP:
         pygame.draw.line(screen, "black", top_left, top_right,5)
     return
 
 
+def step(solver: MAZESOLVER, robot: ROBOT_CONTROL):
+    walls = rotate_walls(robot.dummy_get_walls(),solver.direction)
+    solver.nodes[solver.current_node_pos].code = walls
+    solver.update_adjacent_walls(solver.nodes[solver.current_node_pos])
+    x, y = solver.step()
+    robot.move_goto(x,y)
+    return
+
+# Below is a small function for rotating the detected wall configuration to compensate for the direction the robot will be facing during operation
+
+def rotate_walls(code,current_direction):
+
+        temp_code = code << current_direction
+
+        return int(temp_code / 16) + (temp_code % 16)
 
 
-# nodes = create_maze(maze_size)  # Old code, create_maze() is now absorbed by the maze_solver class
+if __name__ == "__main__":
+    pygame.init()
+    screen = pygame.display.set_mode((640, 720))
+    # map = pygame.display.set_mode((640,720))
+    clock = pygame.time.Clock()
 
-solver = MAZESOLVER(maze_size=maze_size)
+    maze_size = int(sys.argv[1]) if len(sys.argv) > 1 else 9
+    fixed_maze = bool(sys.argv[2]) if len(sys.argv) > 2 else True
+    square_size = int((screen.get_width()-10)/maze_size)-1
+    maze_centre = (int(maze_size/2),int(maze_size/2))
+    display_colors = False
+    display_distance = False
+    display_ranks = False
+    inverted = False # Set this to true to turn whatever maze you input upside down
 
-while running:
+    value = 1
+    saturation = 0.5
+
+    solver = MAZESOLVER(maze_size=maze_size)
+    robot = ROBOT_CONTROL(maze_size=maze_size, inverted = inverted)
+    robot.direction = solver.direction
+    running = True
     
+    while running:
+        
 
-    # poll for events
-    # pygame.QUIT event means the user clicked X to close your window
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-
-        if event.type == pygame.KEYDOWN:
-            key = event.key
-            if key == pygame.K_r:
-                pass
-            #     nodes = create_maze(maze_size)
-            elif key == pygame.K_ESCAPE:
+        # poll for events
+        # pygame.QUIT event means the user clicked X to close your window
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
                 running = False
-            elif key == pygame.K_SPACE:
-                if solver.solved:
+
+            if event.type == pygame.KEYDOWN:
+                key = event.key
+                if key == pygame.K_r:
+                    pass
+                #     nodes = create_maze(maze_size)
+                elif key == pygame.K_ESCAPE:
                     running = False
+                elif key == pygame.K_SPACE:
+                    if solver.solved:
+                        running = False
+                    else:
+                        step(solver,robot)
+                elif key == pygame.K_c:
+                    display_distance = False
+                    display_ranks = False
+                    display_colors = True if display_colors == False else False
+                elif key == pygame.K_p:
+                    display_colors = False
+                    display_ranks = False
+                    display_distance = True if display_distance == False else False
+                elif key == pygame.K_l:
+                    display_colors = False
+                    display_distance = False
+                    display_ranks = True if display_distance == False else False
                 else:
-                    solver.step()
-            elif key == pygame.K_c:
-                display_distance = False
-                display_ranks = False
-                display_colors = True if display_colors == False else False
-            elif key == pygame.K_p:
-                display_colors = False
-                display_ranks = False
-                display_distance = True if display_distance == False else False
-            elif key == pygame.K_l:
-                display_colors = False
-                display_distance = False
-                display_ranks = True if display_distance == False else False
-            else:
-                print("Well here we are again")
+                    print("Well here we are again")
 
+            
         
-      
-    # fill the screen with a color to wipe away anything from last frame
-    screen.fill("navy")
-    for node in solver.nodes:
-        x = 5 + (node.x) * (square_size + 1)
-        y = 45 + int(node.y) * (square_size + 1)
-        
-        if display_colors:
-            rgb = tuple(round(j*255) for j in  colorsys.hsv_to_rgb(node.dist_end/maze_size,saturation,value))
-        elif display_distance:
-            rgb = tuple(round(j*255) for j in  colorsys.hsv_to_rgb(node.dist_start/maze_size,saturation,value))
-        # elif display_ranks:
-        #     rgb = tuple(round(i*255) for i in  colorsys.hsv_to_rgb(solver.nodes[i].rank/maze_size**2,saturation,value))
-        else:            
-            if any(node.pos == path_step for path_step in solver.path):
-                if solver.solved == True:
-                    rgb = (0,255,0)
+        # fill the screen with a color to wipe away anything from last frame
+        screen.fill("navy")
+        # map.fill("navy")
+        for node in solver.nodes:
+            x = 5 + (node.x) * (square_size + 1)
+            y = 45 + int(node.y) * (square_size + 1)
+            
+            if display_colors:
+                rgb = tuple(round(j*255) for j in  colorsys.hsv_to_rgb(node.dist_end/maze_size,saturation,value))
+            elif display_distance:
+                rgb = tuple(round(j*255) for j in  colorsys.hsv_to_rgb(node.dist_start/maze_size,saturation,value))
+            # elif display_ranks:
+            #     rgb = tuple(round(i*255) for i in  colorsys.hsv_to_rgb(solver.nodes[i].rank/maze_size**2,saturation,value))
+            else:            
+                if any(node.pos == path_step for path_step in solver.path):
+                    if solver.solved == True:
+                        rgb = (0,255,0)
+                    else:
+                        rgb = (255,0,0)
+                elif node.dead_end == True:
+                    rgb = (100,100,30)
                 else:
-                    rgb = (255,0,0)
-            elif node.dead_end == True:
-                rgb = (100,100,30)
-            else:
-                rgb = (255,255,255)
-        pygame.draw.rect(screen, rgb, (x,y,square_size,square_size))
-    # for i in range(maze_size**2):
-    #     x = 5 + (i % maze_size) * (square_size + 1)
-    #     y = 45 + int(i/maze_size) * (square_size + 1)
-        draw_walls(screen,x,y,node.code)
+                    rgb = (255,255,255)
+            pygame.draw.rect(screen, rgb, (x,y,square_size,square_size))
+            # pygame.draw.rect(map, rgb, (x,y,square_size,square_size))
+        # for i in range(maze_size**2):
+        #     x = 5 + (i % maze_size) * (square_size + 1)
+        #     y = 45 + int(i/maze_size) * (square_size + 1)
+            draw_walls(screen,x,y,square_size, node.code)
+            # draw_walls(map,x,y,fixed_codes[node.pos])
 
 
+        # screen.fill("white")
 
-    # screen.fill("white")
+        # RENDER YOUR GAME HERE
 
-    # RENDER YOUR GAME HERE
+        # flip() the display to put your work on screen
+        pygame.display.flip()
 
-    # flip() the display to put your work on screen
-    pygame.display.flip()
+        clock.tick(60)  # limits FPS to 60
 
-    clock.tick(60)  # limits FPS to 60
-
-pygame.quit()
+    pygame.quit()
