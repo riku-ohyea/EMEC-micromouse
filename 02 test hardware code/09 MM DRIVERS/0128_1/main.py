@@ -194,7 +194,7 @@ motor.target = 120
 #     now = utime.ticks_us() - start
 #     motor.target = motor.target * -1
 #     utime.sleep(1)
-
+#
 motor.enable = False
 while True:
     print(motor.encoder.read())
