@@ -22,6 +22,9 @@ import colorsys
 
 
 def rotate_walls():
+    """
+    A useful function for modifying wall codes to account for the physical orientation of the robot during motion
+    """
     pass
 
 UP = 0b0001
@@ -31,9 +34,11 @@ LEFT = 0b1000
 
 
 class NODE:
-
+    """
+    Individual grid cells in the mazes to be solved
+    """
     # def __init__(self, pos, rank, code = 0):
-    def __init__(self, pos, maze_size, code = 0):
+    def __init__(self, pos: int, maze_size: int, code = 0):
         self.pos = pos
         self.x = pos % maze_size
         self.y = int(pos/maze_size)
@@ -47,12 +52,18 @@ class NODE:
         self.parent = -1
         self.children = []
         self.dead_end = False
+        self.updated = False
+        self.delay = 0
+        self.gate = 0
 
         pass
 
 
 class MAZESOLVER:
-    
+    """
+    Uses A* style path planning to determine the shortest route to a location, currently under construction, will be usurped by
+    a larger navigator class later
+    """
     def create_maze(self): #placeholder
         pass
 
@@ -86,6 +97,16 @@ class MAZESOLVER:
 
             nodes.append(NODE(pos = i,maze_size=self.maze_size)) #generates a NODE instance and stores it in the list "nodes"
                                         # to be passed to the maze solving algorithm
+            node = nodes[i]
+            if node.x == 0:
+                node.code |= LEFT
+            elif node.x == maze_size-1:
+                node.code |= RIGHT
+            if node.y == 0:
+                node.code |= UP
+            elif node.y == maze_size-1:
+                node.code |= DOWN
+                
         return nodes
 
     def update_adjacent_walls(self, current_node: NODE):
@@ -105,22 +126,34 @@ class MAZESOLVER:
     def pos_to_xy(self, pos: int):
         return int(pos % self.maze_size), int(pos/self.maze_size)
 
-    def get_node_children(self, current_node: NODE):
+    def get_node_children(self, current_node: NODE, flood_fill: bool = False):
         code = current_node.code
-        current_node.children.clear()
+        children = []
         if not (code & RIGHT):    
-            current_node.children.append(current_node.pos+1)
+            children.append(current_node.pos+1)
         if not (code & DOWN):
-            current_node.children.append(current_node.pos+self.maze_size)
+            children.append(current_node.pos+self.maze_size)
         if not (code & LEFT):
-            current_node.children.append(current_node.pos-1)
+            children.append(current_node.pos-1)
         if not (code & UP):
-            current_node.children.append(current_node.pos-self.maze_size)
-        for i in range(len(current_node.children)):
-            if current_node.children[i] == current_node.parent:
-                current_node.children.pop(i)
-                break
-        return
+            children.append(current_node.pos-self.maze_size)
+        
+        for child in children:
+            if (child == current_node.parent and not flood_fill):
+                children.remove(child)
+                return children
+        
+        looping = True
+        while flood_fill and looping:
+            if any([self.nodes[child].updated for child in children]):
+                for child in children:
+                    if self.nodes[child].updated:
+                        children.remove(child)
+            else:
+                looping = False
+            
+                
+        return children
 
 
     def next_child(self, current_node: NODE):
@@ -137,23 +170,58 @@ class MAZESOLVER:
         
         return current_choice
 
+    def flood_update(self, end_node: NODE):
+        new_children = [end_node.pos]
+        dist = 0
+        while any (node.updated == False for node in self.nodes):
+            children = new_children
+            new_children = []
+            for node_pos in children:
+                node = self.nodes[node_pos]
+                node.dist_end = dist
+                if not node.updated and node.gate:
+                    node.delay = -1 + 4 * node.gate
+
+                node.updated = True
+
+                if node.delay > 0:
+                    new_children.append(node_pos)
+                    node.delay -= 1
+                elif node.delay <0:
+                    pass
+                else:
+                    new_children.extend(self.get_node_children(node, flood_fill=True))
+            
+            new_children = list(set(new_children))
+            new_children.sort()                       
+            dist += 1
+
+        for node in self.nodes:
+            node.updated = False
+            node.delay = 0
+        return
+
 
 
     def step(self):
         
         if self.current_node_pos == self.end_point:
             self.solved = True
+            # self.flood_update(self.nodes[self.end_point]) #checking how the walls around the end affect the rest of the map
             return  self.pos_to_xy(self.current_node_pos)
         
+
         
         current_node = self.nodes[self.current_node_pos]
+
+        self.flood_update(self.nodes[self.end_point])
 
         if current_node.dead_end == True:
             self.path.pop()
             self.current_node_pos = current_node.parent
 
-        
-        self.get_node_children(current_node)
+        current_node.children.clear()
+        current_node.children = self.get_node_children(current_node)
 
         # print("There are " + str(len(current_node.children)) + " children on this node")
         # print("and the positions of the children are")
@@ -184,6 +252,9 @@ class MAZESOLVER:
 
     
 class ROBOT_CONTROL:
+    """
+    Dummy plug while programming the logic and pathfinding
+    """
     def __init__(self, maze_size, inverted: bool):
         self.x = 0
         self.y = 0
@@ -265,11 +336,14 @@ def step(solver: MAZESOLVER, robot: ROBOT_CONTROL):
 
 # Below is a small function for rotating the detected wall configuration to compensate for the direction the robot will be facing during operation
 
+# A useful function for modifying wall codes to account for the physical orientation of the robot during motion
 def rotate_walls(code,current_direction):
+    """
+    A useful function for modifying wall codes to account for the physical orientation of the robot during motion
+    """
+    temp_code = code << current_direction
 
-        temp_code = code << current_direction
-
-        return int(temp_code / 16) + (temp_code % 16)
+    return int(temp_code / 16) + (temp_code % 16)
 
 
 if __name__ == "__main__":
