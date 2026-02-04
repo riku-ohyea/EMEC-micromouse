@@ -50,6 +50,7 @@ class NODE:
         self.dist_end = self.fixed_dist_end
         self.dist_start = self.fixed_dist_start
         self.parent = -1
+        self.flood_parent = -1
         self.children = []
         self.dead_end = False
         self.updated = False
@@ -151,8 +152,10 @@ class MAZESOLVER:
                         children.remove(child)
             else:
                 looping = False
-            
-                
+        if flood_fill:
+            for child in children:
+                if self.nodes[child].flood_parent == -1:
+                    self.nodes[child].flood_parent = current_node.pos
         return children
 
 
@@ -170,35 +173,50 @@ class MAZESOLVER:
         
         return current_choice
 
-    def flood_update(self, end_node: NODE):
+    def flood_update(self, end_node: NODE, green_gate: bool = False):
         new_children = [end_node.pos]
-        dist = 0
+
         while any (node.updated == False for node in self.nodes):
             children = new_children
             new_children = []
-            for node_pos in children:
+            i = 0
+            while i < len(children):
+                node_pos = children[i]
                 node = self.nodes[node_pos]
-                node.dist_end = dist
+                node.dist_end = self.nodes[node.flood_parent].dist_end + 1 if (node != end_node and not node.updated) else node.dist_end #each node receives the distance from its parent in the flood fill
                 if not node.updated and node.gate:
-                    node.delay = -1 + 4 * node.gate
+                    if node.gate == -1:
+                        node.delay = 3
+                    elif node.gate == 1:
+                        parent_node = node_pos
+                        while parent_node != end_node.pos:
+                            self.nodes[parent_node].dist_end -= 1
+                            parent_node = self.nodes[parent_node].flood_parent
+                            # print("yeah we got stuck here")
+                        for reset_node in self.nodes:
+                            reset_node.dist_end += 1
+                        end_node.dist_end = 0
+                        children.extend(self.get_node_children(node, flood_fill=True))
 
                 node.updated = True
 
                 if node.delay > 0:
                     new_children.append(node_pos)
+                    children.remove(node.pos)
+                    i -= 1
                     node.delay -= 1
-                elif node.delay <0:
-                    pass
-                else:
+                    node.dist_end += 1
+                elif node.gate < 1:
                     new_children.extend(self.get_node_children(node, flood_fill=True))
-            
-            new_children = list(set(new_children))
+                i += 1
+
+            new_children = list(set(new_children)-set(children))
             new_children.sort()                       
-            dist += 1
 
         for node in self.nodes:
             node.updated = False
             node.delay = 0
+            node.flood_parent = -1
         return
 
 
@@ -206,8 +224,8 @@ class MAZESOLVER:
     def step(self):
         
         if self.current_node_pos == self.end_point:
-            self.solved = True
-            # self.flood_update(self.nodes[self.end_point]) #checking how the walls around the end affect the rest of the map
+            # self.solved = True
+            self.flood_update(self.nodes[self.end_point]) #checking how the walls around the end affect the rest of the map
             return  self.pos_to_xy(self.current_node_pos)
         
 
@@ -261,6 +279,7 @@ class ROBOT_CONTROL:
         self.maze_size = maze_size
         self.direction = 0
         self.inverted = inverted
+        self.pos = 0
 
 
 # Here's where it gets complicated, each cell (node) has a 4 bit code corresponding to the configuration of the walls, the least significant bit
@@ -270,6 +289,8 @@ class ROBOT_CONTROL:
 
 
         self.fixed_codes = [9, 5, 5, 1, 1, 5, 5, 1, 3, 10, 13, 1, 0, 4, 5, 3, 10, 10, 8, 3, 8, 2, 9, 5, 6, 8, 2, 14, 10, 12, 6, 12, 5, 3, 10, 10, 11, 8, 7, 11, 11, 9, 6, 8, 2, 8, 2, 9, 2, 10, 12, 3, 10, 10, 10, 10, 12, 2, 10, 9, 6, 8, 2, 10, 12, 3, 10, 10, 12, 5, 2, 10, 12, 7, 12, 4, 4, 5, 5, 4, 6]
+        self.red_gates = [41]
+        self.green_gates = [58, 3]
         if self.inverted:
             inverted_codes = [rotate_walls(code,2) for code in (fixed_codes)]
             inverted_codes.reverse()
@@ -281,7 +302,23 @@ class ROBOT_CONTROL:
         pass
     
     def dummy_get_walls(self):
-        return rotate_walls(self.fixed_codes[self.y*self.maze_size + self.x],(0-self.direction) % 4)
+        return rotate_walls(self.fixed_codes[self.pos],(0-self.direction) % 4)
+    
+    def dummy_get_gate(self):
+        
+        try:
+            self.red_gates.index(self.pos)
+            return -1
+        except:
+            pass
+        try:
+            self.green_gates.index(self.pos)
+            return 1
+        except:
+            pass
+        
+        return 0
+
 
     def rotate(self, new_dir):
         #add motor control here
@@ -299,9 +336,10 @@ class ROBOT_CONTROL:
             return -1
         self.x = x
         self.y = y
+        self.pos = y * self.maze_size + x
         pass
 
-    def move_dir_dist(self, dir, dist):
+    def _move_dir_dist(self, dir, dist):
         old_x = self.x
         old_y = self.y
         # if dir 
@@ -329,6 +367,7 @@ def draw_walls(screen: pygame.Surface,rect_start_x: int, rect_start_y: int, squa
 def step(solver: MAZESOLVER, robot: ROBOT_CONTROL):
     walls = rotate_walls(robot.dummy_get_walls(),solver.direction)
     solver.nodes[solver.current_node_pos].code = walls
+    solver.nodes[solver.current_node_pos].gate = robot.dummy_get_gate()
     solver.update_adjacent_walls(solver.nodes[solver.current_node_pos])
     x, y = solver.step()
     robot.move_goto(x,y)
@@ -424,8 +463,12 @@ if __name__ == "__main__":
                 if any(node.pos == path_step for path_step in solver.path):
                     if solver.solved == True:
                         rgb = (0,255,0)
-                    else:
+                    elif node.gate == -1:
                         rgb = (255,0,0)
+                    elif node.gate == 1:
+                        rgb = (0,255,0)
+                    else:
+                        rgb = (0,0,255)
                 elif node.dead_end == True:
                     rgb = (100,100,30)
                 else:
